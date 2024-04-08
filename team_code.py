@@ -116,9 +116,9 @@ def train_dx_model(data_folder, model_folder, verbose):
         print('Training the model on the data...')
 
     # Define parameters for random forest classifier and regressor.
-    n_estimators   = 12  # Number of trees in the forest.
-    max_leaf_nodes = 34  # Maximum number of leaf nodes in each tree.
-    random_state   = 56  # Random state; set for reproducibility.
+    n_estimators   = 6  # Number of trees in the forest.
+    max_leaf_nodes = 17  # Maximum number of leaf nodes in each tree.
+    random_state   = 42  # Random state; set for reproducibility.
 
     # Fit the model.
     model = RandomForestClassifier(
