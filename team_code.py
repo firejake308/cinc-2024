@@ -31,6 +31,7 @@ def train_digitization_model(data_folder, model_folder, verbose):
         print('Finding the Challenge data...')
 
     records = find_records(data_folder)
+    records = records[:128] # TODO use the full dataset
     num_records = len(records)
 
     if num_records == 0:
@@ -78,6 +79,7 @@ def train_dx_model(data_folder, model_folder, verbose):
         print('Finding the Challenge data...')
 
     records = find_records(data_folder)
+    records = records[:128] # TODO use the full dataset
     num_records = len(records)
 
     if num_records == 0:
