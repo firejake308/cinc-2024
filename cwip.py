@@ -21,19 +21,17 @@ class Transpose(nn.Module):
 class ConvBlock2d(nn.Sequential):
     def __init__(self, in_channels, out_channels):
         super(ConvBlock2d, self).__init__(
-            nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1),
+            nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1, stride=2),
             nn.BatchNorm2d(out_channels),
             nn.ReLU(),
-            nn.MaxPool2d(2, 2),
         )
 
 class ConvBlock1d(nn.Sequential):
     def __init__(self, in_channels, out_channels):
         super(ConvBlock1d, self).__init__(
-            nn.Conv1d(in_channels, out_channels, kernel_size=3, padding=1),
+            nn.Conv1d(in_channels, out_channels, kernel_size=3, padding=1, stride=5),
             nn.BatchNorm1d(out_channels),
             nn.ReLU(),
-            nn.MaxPool1d(2),
         )
 
 class CWIPModel(torch.nn.Module):
@@ -42,20 +40,21 @@ class CWIPModel(torch.nn.Module):
 
         self.img_block = nn.Sequential(
             torchvision.transforms.Resize((320,640)),
-            ConvBlock2d(4, 16), 
+            ConvBlock2d(4, 16),
             ConvBlock2d(16, 64),
-            ConvBlock2d(64, 128),
-            ConvBlock2d(128, 256),
+            ConvBlock2d(64, 256),
+            ConvBlock2d(256, 64),
+            nn.MaxPool2d(10, 10),
             nn.Flatten(-3),
-            nn.Linear(256*20*40, 256*312),
             nn.Sigmoid(),
         )
 
         self.wav_block = nn.Sequential(
-            ConvBlock1d(12, 16),
-            ConvBlock1d(16, 64),
-            ConvBlock1d(64, 128),
-            ConvBlock1d(128, 256),
+            ConvBlock1d(12, 32),
+            ConvBlock1d(32, 64),
+            ConvBlock1d(64, 256),
+            nn.MaxPool1d(10, 16),
+            Print(),
             nn.Flatten(-2),
         )
 

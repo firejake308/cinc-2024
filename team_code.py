@@ -71,8 +71,10 @@ def train_models(data_folder, model_folder, verbose):
         wav_batch = []
         for b in range(BATCH_SIZE):
             record = os.path.join(data_folder, records[i+b])
-            img = load_images(record)[0]
-            wav, _fields = torch.tensor(load_signals(record))
+            img = np.array(load_images(record)[0])
+            img = torch.tensor(img)
+            wav, _fields = load_signals(record)
+            wav = torch.tensor(wav)
             img_batch.append(img)
             wav_batch.append(wav)
         img_batch = torch.cat(img_batch, dim=0).cuda()
