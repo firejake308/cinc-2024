@@ -7,5 +7,14 @@ WORKDIR /challenge
 
 ## Install your dependencies here using apt install, etc.
 
+# Install libgl and ffmpeg
+RUN apt-get update && \
+    apt-get install -y libgl1-mesa-glx ffmpeg vim && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
 ## Include the following line if you have a requirements.txt file.
-RUN pip install -r requirements.txt
+RUN pip install -r requirements.txt --no-cache-dir
+RUN pip install -r ecg-image-generator/requirements.txt --no-cache-dir
+
+CMD ["bash"]

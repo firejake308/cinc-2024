@@ -14,8 +14,10 @@ import numpy as np
 import os
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 import sys
+import torch
 
 from helper_code import *
+from cwip import CWIPModel
 
 ################################################################################
 #
@@ -52,13 +54,36 @@ def train_models(data_folder, model_folder, verbose):
     classification_features = list()
     classification_labels = list()
 
+    # initialize the model
+    model = CWIPModel()
+    optim = torch.optim.Adam(model.parameters())
+    loss_fn = torch.nn.MSELoss()
+    
     # Iterate over the records.
-    for i in range(num_records):
+    BATCH_SIZE = 16
+    for i in range(0, num_records, BATCH_SIZE):
         if verbose:
             width = len(str(num_records))
             print(f'- {i+1:>{width}}/{num_records}: {records[i]}...')
 
-        record = os.path.join(data_folder, records[i])
+        # build a batch
+        img_batch = []
+        wav_batch = []
+        for b in range(BATCH_SIZE):
+            record = os.path.join(data_folder, records[i+b])
+            img = load_images(record)[0]
+            wav, _fields = torch.tensor(load_signals(record))
+            img_batch.append(img)
+            wav_batch.append(wav)
+        img_batch = torch.cat(img_batch, dim=0).cuda()
+        wav_batch = torch.cat(wav_batch, dim=0).cuda()
+    
+        # do one step of the model training
+        out = model(img_batch, wav_batch)
+        lab = torch.eye(BATCH_SIZE)
+        loss = loss_fn(out, lab)
+        loss.backward()
+        optim.step()
 
         # Extract the features from the image; this simple example uses the same features for the digitization and classification
         # tasks.
