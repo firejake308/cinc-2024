@@ -15,6 +15,7 @@ import os
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 import sys
 import torch
+import torchvision
 
 from helper_code import *
 from cwip import CWIPModel
@@ -35,7 +36,7 @@ def train_models(data_folder, model_folder, verbose):
         print('Finding the Challenge data...')
 
     records = find_records(data_folder)
-    records = records[:128] # TODO use the full dataset
+    # records = records[:128] # TODO use the full dataset
     num_records = len(records)
 
     if num_records == 0:
@@ -55,10 +56,16 @@ def train_models(data_folder, model_folder, verbose):
     classification_labels = list()
 
     # initialize the model
-    model = CWIPModel()
+    model = CWIPModel().float()
+    model.cuda()
     optim = torch.optim.Adam(model.parameters())
     loss_fn = torch.nn.MSELoss()
-    
+    transf = torchvision.transforms.Compose([
+        torchvision.transforms.ToTensor(),
+        torchvision.transforms.Resize((320, 640)),
+        torchvision.transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+    ])
+
     # Iterate over the records.
     BATCH_SIZE = 16
     for i in range(0, num_records, BATCH_SIZE):
@@ -72,18 +79,19 @@ def train_models(data_folder, model_folder, verbose):
         for b in range(BATCH_SIZE):
             record = os.path.join(data_folder, records[i+b])
             img = np.array(load_images(record)[0])
-            img = torch.tensor(img)
+            img = transf(img[:,:,:3]).float()
             wav, _fields = load_signals(record)
-            wav = torch.tensor(wav)
+            wav = torch.tensor(wav.T).float()
             img_batch.append(img)
             wav_batch.append(wav)
-        img_batch = torch.cat(img_batch, dim=0).cuda()
-        wav_batch = torch.cat(wav_batch, dim=0).cuda()
+        img_batch = torch.stack(img_batch, dim=0).cuda()
+        wav_batch = torch.stack(wav_batch, dim=0).cuda()
     
         # do one step of the model training
         out = model(img_batch, wav_batch)
-        lab = torch.eye(BATCH_SIZE)
+        lab = torch.eye(BATCH_SIZE).cuda()
         loss = loss_fn(out, lab)
+        print(loss.item())
         loss.backward()
         optim.step()
 

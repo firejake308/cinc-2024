@@ -39,8 +39,7 @@ class CWIPModel(torch.nn.Module):
         super(CWIPModel, self).__init__()
 
         self.img_block = nn.Sequential(
-            torchvision.transforms.Resize((320,640)),
-            ConvBlock2d(4, 16),
+            ConvBlock2d(3, 16),
             ConvBlock2d(16, 64),
             ConvBlock2d(64, 256),
             ConvBlock2d(256, 64),
@@ -54,7 +53,6 @@ class CWIPModel(torch.nn.Module):
             ConvBlock1d(32, 64),
             ConvBlock1d(64, 256),
             nn.MaxPool1d(10, 16),
-            Print(),
             nn.Flatten(-2),
         )
 
