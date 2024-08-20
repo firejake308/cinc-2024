@@ -15,6 +15,5 @@ RUN apt-get update && \
 
 ## Include the following line if you have a requirements.txt file.
 RUN pip install -r requirements.txt --no-cache-dir
-RUN pip install -r ecg-image-generator/requirements.txt --no-cache-dir
 
 CMD ["bash"]
