@@ -37,7 +37,6 @@ def train_models(data_folder, model_folder, verbose):
         print('Finding the Challenge data...')
 
     records = find_records(data_folder)
-    # records = records[:128] # TODO use the full dataset
     num_records = len(records)
 
     if num_records == 0:
@@ -75,7 +74,7 @@ def train_models(data_folder, model_folder, verbose):
             width = len(str(num_records))
             print(f'- {i+1:>{width}}/{num_records}: {records[i]}...')
 
-        if time.time() - start_time > 60 * 5:
+        if time.time() - start_time > 60 * 60 * 24:
             print('Reached time limit')
             break
         # build a batch
