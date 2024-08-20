@@ -14,6 +14,7 @@ import numpy as np
 import os
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 import sys
+import time
 import torch
 import torchvision
 
@@ -57,7 +58,7 @@ def train_models(data_folder, model_folder, verbose):
 
     # initialize the model
     model = CWIPModel().float()
-    model.cuda()
+    # model.cuda()
     optim = torch.optim.Adam(model.parameters())
     loss_fn = torch.nn.MSELoss()
     transf = torchvision.transforms.Compose([
@@ -68,11 +69,15 @@ def train_models(data_folder, model_folder, verbose):
 
     # Iterate over the records.
     BATCH_SIZE = 16
+    start_time = time.time() 
     for i in range(0, num_records, BATCH_SIZE):
         if verbose:
             width = len(str(num_records))
             print(f'- {i+1:>{width}}/{num_records}: {records[i]}...')
 
+        if time.time() - start_time > 60 * 5:
+            print('Reached time limit')
+            break
         # build a batch
         img_batch = []
         wav_batch = []
@@ -84,20 +89,22 @@ def train_models(data_folder, model_folder, verbose):
             wav = torch.tensor(wav.T).float()
             img_batch.append(img)
             wav_batch.append(wav)
-        img_batch = torch.stack(img_batch, dim=0).cuda()
-        wav_batch = torch.stack(wav_batch, dim=0).cuda()
+        img_batch = torch.stack(img_batch, dim=0)
+        wav_batch = torch.stack(wav_batch, dim=0)
     
         # do one step of the model training
         out = model(img_batch, wav_batch)
-        lab = torch.eye(BATCH_SIZE).cuda()
+        lab = torch.eye(BATCH_SIZE)#.cuda()
         loss = loss_fn(out, lab)
         print(loss.item())
         loss.backward()
         optim.step()
-
+    
+    for i in range(num_records):
+        record = os.path.join(data_folder, records[i])
         # Extract the features from the image; this simple example uses the same features for the digitization and classification
         # tasks.
-        features = extract_features(record)
+        features = extract_features(record, model)
         
         digitization_features.append(features)
 
@@ -139,7 +146,7 @@ def train_models(data_folder, model_folder, verbose):
     os.makedirs(model_folder, exist_ok=True)
 
     # Save the models.
-    save_models(model_folder, digitization_model, classification_model, classes)
+    save_models(model_folder, digitization_model, classification_model, classes, cwip_model=model)
 
     if verbose:
         print('Done.')
@@ -153,38 +160,29 @@ def load_models(model_folder, verbose):
 
     classification_filename = os.path.join(model_folder, 'classification_model.sav')
     classification_model = joblib.load(classification_filename)
-    return digitization_model, classification_model
+
+    cwip_model = CWIPModel()
+    cwip_model.load_state_dict(torch.load(os.path.join(model_folder, 'cwip.pt')))
+    classification_model['cwip'] = cwip_model
+
+    return None, classification_model
 
 # Run your trained digitization model. This function is *required*. You should edit this function to add your code, but do *not*
 # change the arguments of this function. If you did not train one of the models, then you can return None for the model.
 def run_models(record, digitization_model, classification_model, verbose):
     # Run the digitization model; if you did not train this model, then you can set signal = None.
 
-    # Load the digitization model.
-    model = digitization_model['model']
+    signal = None
 
-    # Load the dimensions of the signal.
-    header_file = get_header_file(record)
-    header = load_text(header_file)
-
-    num_samples = get_num_samples(header)
-    num_signals = get_num_signals(header)
-
-    # Extract the features.
-    features = extract_features(record)
-    features = features.reshape(1, -1)
-
-    # Generate "random" waveforms using the a random seed from the features.
-    seed = int(round(model + np.mean(features)))
-    signal = np.random.default_rng(seed=seed).uniform(low=-1, high=1, size=(num_samples, num_signals))
-    
     # Run the classification model; if you did not train this model, then you can set labels = None.
 
     # Load the classification model and classes.
     model = classification_model['model']
+    cwip_model = classification_model['cwip']
     classes = classification_model['classes']
 
     # Get the model probabilities.
+    features = extract_features(record, cwip_model)
     probabilities = model.predict_proba(features)
     probabilities = np.asarray(probabilities, dtype=np.float32)[:, 0, 1]
 
@@ -201,18 +199,32 @@ def run_models(record, digitization_model, classification_model, verbose):
 ################################################################################
 
 # Extract features.
-def extract_features(record):
+def extract_features(record, model):
     images = load_images(record)
     mean = 0.0
     std = 0.0
+    transf = torchvision.transforms.Compose([
+        torchvision.transforms.ToTensor(),
+        torchvision.transforms.Resize((320, 640)),
+        torchvision.transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+    ])
+
+    # build a batch
+    img_batch = []
     for image in images:
-        image = np.asarray(image)
-        mean += np.mean(image)
-        std += np.std(image)
-    return np.array([mean, std])
+        img = np.array(image)
+        img = transf(img[:,:,:3]).float()
+        img_batch.append(img)
+    img_batch = torch.stack(img_batch, dim=0)
+
+    # do one step of the model training
+    model.eval()
+    out = model.img_block(img_batch)
+
+    return out.cpu().detach().numpy()
 
 # Save your trained models.
-def save_models(model_folder, digitization_model=None, classification_model=None, classes=None):
+def save_models(model_folder, digitization_model=None, classification_model=None, classes=None, cwip_model=None):
     if digitization_model is not None:
         d = {'model': digitization_model}
         filename = os.path.join(model_folder, 'digitization_model.sav')
@@ -222,4 +234,8 @@ def save_models(model_folder, digitization_model=None, classification_model=None
         d = {'model': classification_model, 'classes': classes}
         filename = os.path.join(model_folder, 'classification_model.sav')
         joblib.dump(d, filename, protocol=0)
+
+    if cwip_model is not None:
+        filename = os.path.join(model_folder, 'cwip.pt')
+        torch.save(cwip_model.state_dict(), filename)
 
